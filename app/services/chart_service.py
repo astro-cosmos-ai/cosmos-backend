@@ -1,0 +1,60 @@
+"""Orchestrates chart creation: assemble → compute harness → store in Supabase."""
+import logging
+from datetime import date, time
+
+from app.services.astrology_api.assembler import assemble_chart
+from app.services.harness.parashari import compute_all_significators
+from app.services.harness.yogas import detect_yogas
+from app.services.load_service import load_chart_data
+from app.db import queries
+from supabase import Client
+
+logger = logging.getLogger(__name__)
+
+
+def _birth_input_from_request(req: dict) -> dict:
+    dob: date = req["dob"]
+    tob: time = req["tob"]
+    return {
+        "day": dob.day,
+        "month": dob.month,
+        "year": dob.year,
+        "hour": tob.hour,
+        "min": tob.minute,
+        "lat": req["pob_lat"],
+        "lon": req["pob_lon"],
+        "tzone": req["timezone"],
+    }
+
+
+async def create_chart(db: Client, user_id: str, birth_req: dict) -> dict:
+    birth_input = _birth_input_from_request(birth_req)
+    assembled = await assemble_chart(birth_input)
+
+    # Compute Parashari significators from assembled data
+    parashari_sig = compute_all_significators(assembled)
+    assembled["parashari_significators"] = parashari_sig
+
+    # Detect yogas from harness output
+    planets = assembled.get("planets") or {}
+    assembled["yogas"] = detect_yogas(parashari_sig, planets)
+
+    chart_data = {
+        "name": birth_req["name"],
+        "dob": str(birth_req["dob"]),
+        "tob": str(birth_req["tob"]),
+        "pob_name": birth_req["pob_name"],
+        "pob_lat": birth_req["pob_lat"],
+        "pob_lon": birth_req["pob_lon"],
+        "timezone": birth_req["timezone"],
+        **assembled,
+    }
+
+    chart_row = queries.insert_chart(db, user_id, chart_data)
+
+    try:
+        await load_chart_data(db, chart_row, date.today().year)
+    except Exception as e:
+        logger.warning("load_chart_data failed after chart creation: %s", e)
+
+    return chart_row

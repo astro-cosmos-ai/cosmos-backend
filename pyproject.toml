@@ -1,0 +1,39 @@
+[project]
+name = "cosmos-backend"
+version = "0.1.0"
+description = "Vedic Astrology Platform — FastAPI backend"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "httpx>=0.28",
+    "supabase>=2.10",
+    "anthropic>=0.40",
+    "langgraph>=0.2",
+    "langchain-anthropic>=0.3",
+    "langchain-core>=0.3",
+    "pydantic-settings>=2.7",
+    "python-dotenv>=1.0",
+    "python-jose[cryptography]>=3.3",
+    "reportlab>=4.2",
+    "weasyprint>=63",
+    "pyswisseph>=2.10",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "httpx",
+    "respx>=0.21",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

@@ -1,0 +1,194 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -n '{hookSpecificOutput:{hookEventName:\"SessionStart\",additionalContext:\"# cosmos-backend conventions (loaded at session start)\\n\\n**Pick the right lane before writing code:**\\n- Harness (app/services/harness/) → harness-builder\\n- LangGraph agents (app/agents/) → agent-author\\n- FastAPI routes (app/api/) → route-author\\n- System prompts (app/agents/prompts/) → prompt-engineer\\n- Supabase work → db-architect\\n- Code review → code-reviewer\\n- Tests → test-author\\n- Bugs / failures → debugger\\n- Cross-layer plan → planner\\n\\n**Always:** Context7 MCP before library code; Supabase MCP for all DB ops. Skills auto-loaded into relevant subagents: claude-api (agent-author, prompt-engineer, debugger), supabase-postgres-best-practices (db-architect, code-reviewer, debugger).\\n\\n**Slash commands:** /add-section, /new-migration, /check-harness, /run-backend, /explain-chart-pipeline, /fetch-docs.\\n\\n**Rules:** see .claude/rules/.\"}}'",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "prompt=$(jq -r '.prompt // \"\"' 2>/dev/null); hints=\"\"; printf -v nl '\\n'; if echo \"$prompt\" | grep -qiE '\\b(langgraph|fastapi|supabase|anthropic|pydantic|httpx|langchain|reportlab)\\b'; then hints=\"$hints$nl- Library mentioned → Context7 MCP (resolve-library-id + get-library-docs) before writing code.\"; fi; if echo \"$prompt\" | grep -qiE '\\b(migration|schema|rls|table|column|postgres|supabase)\\b'; then hints=\"$hints$nl- DB work → db-architect subagent or /new-migration. Never psql.\"; fi; if echo \"$prompt\" | grep -qiE '\\b(prompt|new section|personality|career|marriage|mind|wealth|romance|spirituality)\\b'; then hints=\"$hints$nl- Section / prompt work → /add-section, or prompt-engineer + harness-builder.\"; fi; if echo \"$prompt\" | grep -qiE '\\b(route|endpoint|handler|api/)'; then hints=\"$hints$nl- Route work → route-author. async + Pydantic + queries.py.\"; fi; if echo \"$prompt\" | grep -qiE '\\b(harness|yoga|dignity|aspect|significator|whole.?sign)\\b'; then hints=\"$hints$nl- Harness work → harness-builder. No LLM/AstrologyAPI imports in app/services/harness/.\"; fi; if echo \"$prompt\" | grep -qiE '\\b(tool use|streaming|thinking|claude|anthropic)\\b'; then hints=\"$hints$nl- Anthropic SDK → invoke claude-api skill (or delegate to agent-author/prompt-engineer which auto-load it).\"; fi; if echo \"$prompt\" | grep -qiE '\\b(index|postgres|query plan|explain analyze|jsonb|btree|gin)\\b'; then hints=\"$hints$nl- Postgres performance → invoke supabase-postgres-best-practices skill (or delegate to db-architect/code-reviewer which auto-load it).\"; fi; if echo \"$prompt\" | grep -qiE '\\b(pdf|reportlab|report\\.pdf)\\b'; then hints=\"$hints$nl- PDF work → pdf skill (auto-loaded into route-author). The report endpoint is /api/charts/{id}/report.pdf.\"; fi; if echo \"$prompt\" | grep -qiE '\\b(test|tests|pytest|coverage)\\b'; then hints=\"$hints$nl- Tests → test-author subagent. uv run pytest, fixture-based, no harness mocks.\"; fi; if echo \"$prompt\" | grep -qiE '\\b(review|code review|pr review)\\b'; then hints=\"$hints$nl- Review → code-reviewer subagent. Read-only; checks harness-first + RLS + async.\"; fi; if echo \"$prompt\" | grep -qiE '\\b(bug|failing|error|traceback|500|stack trace)\\b'; then hints=\"$hints$nl- Failure → debugger subagent. Pulls Supabase logs via MCP, isolates root cause.\"; fi; if echo \"$prompt\" | grep -qiE '\\b(plan|design|architect|breakdown)\\b'; then hints=\"$hints$nl- Multi-layer task → planner subagent.\"; fi; if [ -n \"$hints\" ]; then jq -n --arg h \"$hints\" '{hookSpecificOutput:{hookEventName:\"UserPromptSubmit\",additionalContext:(\"# Routing hints\" + $h)}}'; else echo '{}'; fi",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cmd=$(jq -r '.tool_input.command // \"\"' 2>/dev/null); if echo \"$cmd\" | grep -qE '(^|[^a-z])psql([^a-z]|$)|supabase db (push|reset|execute)|sqlite3 |mysql '; then jq -n '{permissionDecision:\"deny\",permissionDecisionReason:\"Direct SQL via shell is disallowed. Use mcp__supabase__execute_sql / mcp__supabase__apply_migration. See .claude/rules/mcp-usage.md\"}'; else echo '{}'; fi",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file=$(jq -r '.tool_input.file_path // \"\"' 2>/dev/null); if echo \"$file\" | grep -qE 'app/services/harness/'; then jq -n '{hookSpecificOutput:{hookEventName:\"PreToolUse\",additionalContext:\"HARNESS LANE — delegate to harness-builder subagent. See .claude/rules/harness-first.md\"}}'; elif echo \"$file\" | grep -qE 'app/agents/prompts/'; then jq -n '{hookSpecificOutput:{hookEventName:\"PreToolUse\",additionalContext:\"PROMPT LANE — delegate to prompt-engineer subagent.\"}}'; elif echo \"$file\" | grep -qE 'app/agents/'; then jq -n '{hookSpecificOutput:{hookEventName:\"PreToolUse\",additionalContext:\"AGENT LANE — delegate to agent-author subagent.\"}}'; elif echo \"$file\" | grep -qE 'app/api/'; then jq -n '{hookSpecificOutput:{hookEventName:\"PreToolUse\",additionalContext:\"ROUTE LANE — delegate to route-author subagent.\"}}'; elif echo \"$file\" | grep -qE 'app/db/'; then jq -n '{hookSpecificOutput:{hookEventName:\"PreToolUse\",additionalContext:\"DB LANE — delegate to db-architect subagent.\"}}'; else echo '{}'; fi",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file=$(jq -r '.tool_input.file_path // \"\"' 2>/dev/null); if echo \"$file\" | grep -qE 'app/agents/prompts/[a-z_]+\\.py$'; then jq -n '{hookSpecificOutput:{hookEventName:\"PostToolUse\",additionalContext:\"Prompt file written. Verify: registered in app/agents/registry.py, build_<section>_context exists in app/services/harness/context_builder.py, listed in VALID_SECTIONS. Run /check-harness.\"},suppressOutput:true}'; elif echo \"$file\" | grep -qE 'app/db/migrations/.*\\.sql$'; then jq -n '{hookSpecificOutput:{hookEventName:\"PostToolUse\",additionalContext:\"Migration written. Apply via mcp__supabase__apply_migration (not psql), then mcp__supabase__get_advisors.\"},suppressOutput:true}'; elif echo \"$file\" | grep -qE 'app/services/harness/'; then jq -n '{hookSpecificOutput:{hookEventName:\"PostToolUse\",additionalContext:\"Harness edited. Run /check-harness; confirm no anthropic/AstrologyAPI imports leaked in.\"},suppressOutput:true}'; elif echo \"$file\" | grep -qE 'app/agents/registry\\.py$'; then jq -n '{hookSpecificOutput:{hookEventName:\"PostToolUse\",additionalContext:\"Registry changed. Verify: uv run python -c \\\"from app.agents.registry import AGENT_REGISTRY; print(list(AGENT_REGISTRY.keys()))\\\"\"},suppressOutput:true}'; else echo '{\"suppressOutput\":true}'; fi",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/scripts/bash-failure-hint.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/scripts/stop-nudge.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Skill(claude-api)",
+      "Skill(supabase-postgres-best-practices)",
+      "Skill(context7-mcp)",
+      "Skill(pdf)",
+      "Skill(mcp-builder)",
+      "Skill(webapp-testing)",
+      "Skill(add-section)",
+      "Skill(new-migration)",
+      "Skill(run-backend)",
+      "Skill(explain-chart-pipeline)",
+      "Skill(fetch-docs)",
+      "Skill(check-harness)",
+      "Skill(fewer-permission-prompts)",
+      "Skill(simplify)",
+      "Skill(caveman)",
+      "Skill(composition-patterns)",
+      "Skill(deploy-to-vercel)",
+      "Skill(doc-coauthoring)",
+      "Skill(docx)",
+      "Skill(frontend-design)",
+      "Skill(gsap-core)",
+      "Skill(gsap-frameworks)",
+      "Skill(gsap-performance)",
+      "Skill(gsap-plugins)",
+      "Skill(gsap-react)",
+      "Skill(gsap-scrolltrigger)",
+      "Skill(gsap-timeline)",
+      "Skill(gsap-utils)",
+      "Skill(react-best-practices)",
+      "Skill(react-native-skills)",
+      "Skill(react-view-transitions)",
+      "Skill(skill-creator)",
+      "Skill(stitch-design)",
+      "Skill(stitch-loop)",
+      "Skill(web-artifacts-builder)",
+      "Skill(web-design-guidelines)",
+      "Skill(wiki-export)",
+      "Skill(wiki-history-ingest)",
+      "Skill(wiki-ingest)",
+      "Skill(wiki-lint)",
+      "Skill(wiki-query)",
+      "Skill(wiki-rebuild)",
+      "Skill(wiki-setup)",
+      "Skill(wiki-status)",
+      "Skill(wiki-update)",
+      "Skill(xlsx)",
+      "Skill(superpowers:using-superpowers)",
+      "Skill(superpowers:brainstorming)",
+      "Skill(superpowers:writing-plans)",
+      "Skill(superpowers:executing-plans)",
+      "Skill(superpowers:subagent-driven-development)",
+      "Skill(superpowers:dispatching-parallel-agents)",
+      "Skill(superpowers:systematic-debugging)",
+      "Skill(superpowers:test-driven-development)",
+      "Skill(superpowers:requesting-code-review)",
+      "Skill(superpowers:receiving-code-review)",
+      "Skill(superpowers:verification-before-completion)",
+      "Skill(superpowers:finishing-a-development-branch)",
+      "Skill(superpowers:using-git-worktrees)",
+      "Skill(superpowers:writing-skills)",
+      "Bash(uv --version)",
+      "Bash(uv sync*)",
+      "Bash(uv run*)",
+      "Bash(test -f *)",
+      "Bash(test -d *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(grep *)",
+      "Bash(find *)",
+      "Bash(echo *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(jq *)",
+      "Bash(python *)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git add *)",
+      "Bash(git commit*)",
+      "Bash(git branch*)",
+      "Bash(git stash*)",
+      "Bash(curl *)",
+      "Bash(lsof *)",
+      "Bash(which *)",
+      "Bash(pwd)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs",
+      "mcp__supabase__list_tables",
+      "mcp__supabase__list_migrations",
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__apply_migration",
+      "mcp__supabase__get_advisors",
+      "mcp__supabase__get_logs",
+      "mcp__supabase__generate_typescript_types"
+    ],
+    "ask": [
+      "Bash(rm *)",
+      "Bash(git push*)",
+      "Bash(git reset --hard*)"
+    ],
+    "deny": [
+      "Bash(psql*)",
+      "Bash(supabase db push*)",
+      "Bash(supabase db reset*)",
+      "Bash(sqlite3*)",
+      "Bash(mysql*)"
+    ]
+  }
+}
