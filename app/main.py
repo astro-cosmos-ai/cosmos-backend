@@ -1,17 +1,23 @@
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
+from app.core.logging_config import setup_logging
 from app.api import charts, significators, analyses, timeline, chat, compatibility, predict, varshaphal, report
+
+setup_logging(debug=settings.debug)
+logger = logging.getLogger("app")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Warm up the Supabase client singleton on startup
     from app.core.supabase import get_supabase
     get_supabase()
+    logger.info("Cosmos backend started — Swiss Ephemeris engine active")
     yield
+    logger.info("Cosmos backend shutting down")
 
 
 app = FastAPI(

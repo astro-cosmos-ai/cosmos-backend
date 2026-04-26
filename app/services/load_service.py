@@ -3,9 +3,12 @@ Chart load service: computes ALL dynamic Swiss Ephemeris data for a chart in one
 This is the ONLY place Swiss Ephemeris is called after initial chart creation.
 """
 import asyncio
+import logging
 from datetime import date
 
 from app.services.swiss.calculator import compute_chart
+
+logger = logging.getLogger("app.load")
 from app.services.transit_service import compute_transit_houses, _natal_asc_sign
 from app.db import queries
 from supabase import Client
@@ -65,6 +68,8 @@ async def load_chart_data(db: Client, chart_row: dict, year: int) -> dict:
         raise RuntimeError("Swiss Ephemeris failed to return varshaphal planets")
     if not raw_transit:
         raise RuntimeError("Swiss Ephemeris failed to return transit planets")
+
+    logger.info("chart=%s  loaded varshaphal year=%s transit=%s", chart_row["id"], year, today)
 
     existing_raw = chart_row.get("varshaphal_raw") or {}
     existing_raw[str(year)] = raw_annual

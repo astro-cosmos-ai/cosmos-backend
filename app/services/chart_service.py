@@ -10,7 +10,7 @@ from app.services.load_service import load_chart_data
 from app.db import queries
 from supabase import Client
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("app.chart")
 
 
 def _birth_input_from_request(req: dict) -> dict:
@@ -53,6 +53,7 @@ async def create_chart(db: Client, user_id: str, birth_req: dict) -> dict:
     }
 
     chart_row = queries.insert_chart(db, user_id, chart_data)
+    logger.info("chart created  id=%s  user=%s  name=%s", chart_row.get("id"), user_id, birth_req["name"])
 
     try:
         await load_chart_data(db, chart_row, date.today().year)
