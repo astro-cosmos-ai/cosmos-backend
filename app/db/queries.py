@@ -50,18 +50,12 @@ def get_chart_full(db: Client, chart_id: str, user_id: str) -> dict | None:
     return result.data
 
 
-def find_chart_by_birth(
-    db: Client, user_id: str, dob: str, tob: str, pob_lat: float, pob_lon: float
-) -> dict | None:
-    """Return existing chart for this user + birth data, or None."""
+def find_chart_by_user(db: Client, user_id: str) -> dict | None:
+    """Return the user's single chart, or None if not yet created."""
     result = (
         db.table("charts")
         .select(_CHART_COLUMNS)
         .eq("user_id", user_id)
-        .eq("dob", dob)
-        .eq("tob", tob)
-        .eq("pob_lat", pob_lat)
-        .eq("pob_lon", pob_lon)
         .limit(1)
         .execute()
     )
