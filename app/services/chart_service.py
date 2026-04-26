@@ -29,6 +29,15 @@ def _birth_input_from_request(req: dict) -> dict:
 
 
 async def create_chart(db: Client, user_id: str, birth_req: dict) -> dict:
+    existing = queries.find_chart_by_birth(
+        db, user_id,
+        str(birth_req["dob"]), str(birth_req["tob"]),
+        birth_req["pob_lat"], birth_req["pob_lon"],
+    )
+    if existing:
+        logger.info("chart exists  id=%s  user=%s — returning existing", existing.get("id"), user_id)
+        return existing
+
     birth_input = _birth_input_from_request(birth_req)
     loop = asyncio.get_running_loop()
     assembled = await loop.run_in_executor(None, compute_chart, birth_input)
