@@ -31,7 +31,12 @@ def _birth_input_from_request(req: dict) -> dict:
 async def create_chart(db: Client, user_id: str, birth_req: dict) -> dict:
     existing = queries.find_chart_by_user(db, user_id)
     if existing:
-        logger.info("chart exists  id=%s  user=%s — returning existing", existing.get("id"), user_id)
+        logger.info("chart exists  id=%s  user=%s — refreshing dynamic data", existing.get("id"), user_id)
+        try:
+            full = queries.get_chart_full(db, existing["id"], user_id)
+            await load_chart_data(db, full, date.today().year)
+        except Exception as e:
+            logger.warning("load_chart_data refresh failed: %s", e)
         return existing
 
     birth_input = _birth_input_from_request(birth_req)
