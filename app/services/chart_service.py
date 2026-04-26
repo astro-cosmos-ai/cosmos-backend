@@ -1,8 +1,9 @@
-"""Orchestrates chart creation: assemble → compute harness → store in Supabase."""
+"""Orchestrates chart creation: compute → harness → store in Supabase."""
+import asyncio
 import logging
 from datetime import date, time
 
-from app.services.astrology_api.assembler import assemble_chart
+from app.services.swiss.calculator import compute_chart
 from app.services.harness.parashari import compute_all_significators
 from app.services.harness.yogas import detect_yogas
 from app.services.load_service import load_chart_data
@@ -29,7 +30,8 @@ def _birth_input_from_request(req: dict) -> dict:
 
 async def create_chart(db: Client, user_id: str, birth_req: dict) -> dict:
     birth_input = _birth_input_from_request(birth_req)
-    assembled = await assemble_chart(birth_input)
+    loop = asyncio.get_running_loop()
+    assembled = await loop.run_in_executor(None, compute_chart, birth_input)
 
     # Compute Parashari significators from assembled data
     parashari_sig = compute_all_significators(assembled)

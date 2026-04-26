@@ -1,7 +1,6 @@
 """
-Transit engine: fetch real-time planet positions for any date and compute
-whole-sign transit houses against a natal chart.
-Reuses the same AstrologyAPI client path (Semaphore(5) respected).
+Transit engine: compute real-time planet positions for any date via Swiss Ephemeris
+and assign whole-sign transit houses against a natal chart.
 """
 from app.services.harness.dignity import get_dignity
 
@@ -33,7 +32,7 @@ def compute_transit_houses(
     natal_asc_sign: int,
 ) -> dict[str, dict]:
     """
-    Given the raw AstrologyAPI planets list for a transit date,
+    Given the raw planets list for a transit date,
     returns a dict keyed by planet name with transit sign and house.
     """
     result: dict[str, dict] = {}

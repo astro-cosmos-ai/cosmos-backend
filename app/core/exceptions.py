@@ -22,5 +22,3 @@ class InvalidSection(HTTPException):
         )
 
 
-class AstrologyAPIError(Exception):
-    pass

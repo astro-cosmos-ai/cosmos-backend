@@ -1,11 +1,11 @@
 """
-Chart load service: fetches ALL dynamic AstrologyAPI data for a chart in one shot.
-This is the ONLY place AstrologyAPI is called after initial chart creation.
+Chart load service: computes ALL dynamic Swiss Ephemeris data for a chart in one shot.
+This is the ONLY place Swiss Ephemeris is called after initial chart creation.
 """
 import asyncio
 from datetime import date
 
-from app.services.astrology_api.client import fetch_many
+from app.services.swiss.calculator import compute_chart
 from app.services.transit_service import compute_transit_houses, _natal_asc_sign
 from app.db import queries
 from supabase import Client
@@ -42,7 +42,7 @@ def _transit_payload(chart_row: dict, target_date: date) -> dict:
 
 async def load_chart_data(db: Client, chart_row: dict, year: int) -> dict:
     """
-    Fetches varshaphal raw planets for `year` and today's transit snapshot.
+    Computes varshaphal raw planets for `year` and today's transit snapshot via Swiss Ephemeris.
     Writes results to charts.varshaphal_raw and charts.transit_snapshot.
     Returns a summary dict.
     """
@@ -50,17 +50,24 @@ async def load_chart_data(db: Client, chart_row: dict, year: int) -> dict:
     annual_pl = _annual_payload(chart_row, year)
     transit_pl = _transit_payload(chart_row, today)
 
-    results = await fetch_many([("planets", annual_pl), ("planets", transit_pl)])
-    raw_annual, raw_transit = results[0], results[1]
+    loop = asyncio.get_running_loop()
+    annual_chart, transit_chart = await asyncio.gather(
+        loop.run_in_executor(None, compute_chart, annual_pl),
+        loop.run_in_executor(None, compute_chart, transit_pl),
+    )
+
+    # Normalise Swiss planets dict → list so downstream consumers (compute_annual_houses,
+    # compute_transit_houses) can iterate it uniformly.
+    raw_annual = list((annual_chart.get("planets") or {}).values())
+    raw_transit = list((transit_chart.get("planets") or {}).values())
 
     if not raw_annual:
-        raise RuntimeError("AstrologyAPI failed to return varshaphal planets")
+        raise RuntimeError("Swiss Ephemeris failed to return varshaphal planets")
     if not raw_transit:
-        raise RuntimeError("AstrologyAPI failed to return transit planets")
+        raise RuntimeError("Swiss Ephemeris failed to return transit planets")
 
     existing_raw = chart_row.get("varshaphal_raw") or {}
     existing_raw[str(year)] = raw_annual
-    loop = asyncio.get_event_loop()
     await loop.run_in_executor(
         None, queries.update_chart_field, db, chart_row["id"], "varshaphal_raw", existing_raw
     )
